@@ -95,9 +95,15 @@ def get_bmesh(mesh_data, **kwargs):
 
 
 def get_rig_from_bone_name(bone_name):
-    scene_rigs = [obj for obj in bpy.data.objects if isinstance(obj.data, bpy.types.Armature)]
+    """
+        Attempt to grab rig from selection. If none exist then select from scene
+    """
+    active_rigs = [obj for obj in bpy.context.selected_objects if type(obj.data) == bpy.types.Armature]
 
-    for rig in scene_rigs:
+    if not active_rigs:
+        active_rigs = [obj for obj in bpy.data.objects if type(obj.data) == bpy.types.Armature]
+
+    for rig in active_rigs:
         armt = rig.data
         if bone_name in [b.name for b in armt.bones]:
             return rig
@@ -833,7 +839,7 @@ def create_locator(PDX_locator, PDX_bone_dict):
     return new_loc
 
 
-def create_skeleton(PDX_bone_list, convert_bonespace=False):
+def create_skeleton(PDX_bone_list,  name=None, convert_bonespace=False):
     # keep track of bones as we create them (may not be created in indexed order)
     bone_list = [None for _ in range(0, len(PDX_bone_list))]
 
@@ -845,15 +851,16 @@ def create_skeleton(PDX_bone_list, convert_bonespace=False):
         return matching_rigs[0]
 
     # temporary name used during creation
-    tmp_rig_name = "io_pdx_rig"
+    if name is None:
+        name = "io_pdx_rig"
 
     # create the armature datablock
     armt = bpy.data.armatures.new("armature")
-    armt.name = "imported_armature"
+    armt.name = name
     armt.display_type = "STICK"
 
     # create the object and link to the scene
-    new_rig = bpy.data.objects.new(tmp_rig_name, armt)
+    new_rig = bpy.data.objects.new(name, armt)
     bpy.context.scene.collection.objects.link(new_rig)
     bpy.context.view_layer.objects.active = new_rig
     new_rig.show_in_front = True
@@ -1217,7 +1224,7 @@ def import_meshfile(meshpath, imp_mesh=True, imp_skel=True, imp_locs=True, join_
 
             if imp_skel:
                 IO_PDX_LOG.info(f"Creating skeleton - {len(pdx_bone_list)} bones")
-                rig = create_skeleton(pdx_bone_list, convert_bonespace=bonespace)
+                rig = create_skeleton(pdx_bone_list, node.tag, convert_bonespace=bonespace)
 
         # then create all the meshes
         meshes = node.findall("mesh")
@@ -1480,7 +1487,7 @@ def import_animfile(animpath, frame_start=1, **kwargs):
 
     # break on failing to find an armature to animate
     if len(matching_rigs) != 1:
-        raise RuntimeError(f"Missing unique armature required for animation: {matching_rigs}")
+        raise RuntimeError("Missing unique armature required for animation: {0}. Try selecting the rig first".format(matching_rigs))
     rig = matching_rigs[0]
 
     # check armature has all required bones, check scale uniformity
