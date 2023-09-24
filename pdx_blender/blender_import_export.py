@@ -695,6 +695,9 @@ def create_shader(PDX_material, shader_name, texture_dir, template_only=False):
     if getattr(PDX_material, "diff", None) or template_only:
         texture_path = None if template_only else os.path.join(texture_dir, PDX_material.diff[0])
 
+        # Hack to give me PNG file ends for upscale/compression
+        texture_path = texture_path.replace('.dds', '.png')
+
         albedo_texture = create_node_texture(node_tree, texture_path)
         set_node_pos(albedo_texture, -5, 0)
 
@@ -704,6 +707,9 @@ def create_shader(PDX_material, shader_name, texture_dir, template_only=False):
     # link up specular texture to roughness, metallic and specular slots
     if getattr(PDX_material, "spec", None) or template_only:
         texture_path = None if template_only else os.path.join(texture_dir, PDX_material.spec[0])
+
+        # Hack to give me PNG file ends for upscale/compression
+        texture_path = texture_path.replace('.dds', '.png')
 
         material_texture = create_node_texture(node_tree, texture_path, as_data=True)
         set_node_pos(material_texture, -5, 1)
@@ -725,6 +731,9 @@ def create_shader(PDX_material, shader_name, texture_dir, template_only=False):
     # link up normal texture to normal slot
     if getattr(PDX_material, "n", None) or template_only:
         texture_path = None if template_only else os.path.join(texture_dir, PDX_material.n[0])
+
+        # Hack to give me PNG file ends for upscale/compression
+        texture_path = texture_path.replace('.dds', '.png')
 
         normal_texture = create_node_texture(node_tree, texture_path, as_data=True)
         set_node_pos(normal_texture, -5, 2)
