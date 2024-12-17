@@ -668,8 +668,13 @@ def create_shader(PDX_material, shader_name, texture_dir, template_only=False):
     new_shader.use_nodes = True
 
     new_shader.use_backface_culling = True
-    new_shader.shadow_method = "CLIP"
     new_shader.blend_method = "CLIP"
+
+    try:  # Blender < 4.3
+        # https://developer.blender.org/docs/release_notes/4.3/python_api/#eevee
+        new_shader.shadow_method = "CLIP"
+    except AttributeError:
+        pass  
 
     def set_node_pos(node, x, y):
         node.location = Vector((x * 300.0, y * -300.0))
