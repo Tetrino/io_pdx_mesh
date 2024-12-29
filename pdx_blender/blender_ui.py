@@ -40,8 +40,7 @@ except Exception as err:
 
 """ ====================================================================================================================
     Variables and Helper functions.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
 def get_material_list(self, context):
@@ -62,13 +61,12 @@ def get_scene_material_list(self, context):
 def set_engine(self, context):
     sel_engine = context.scene.io_pdx_settings.setup_engine
     IO_PDX_SETTINGS.last_set_engine = sel_engine
-    IO_PDX_LOG.info("Set game engine to: '{}'".format(sel_engine))
+    IO_PDX_LOG.info(f"Set game engine to - '{sel_engine}'")
 
 
 """ ====================================================================================================================
     Operator classes called by the tool UI.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
 class IOPDX_OT_popup_message(Operator):
@@ -155,13 +153,13 @@ class IOPDX_OT_material_create_popup(material_popup, Operator):
         # create a mock PDXData object for convenience here to pass to the create_shader function
         mat_pdx = type("Material", (PDXData, object), {"shader": [mat_type]})
         shader = create_shader(mat_pdx, mat_name, None, template_only=True)
-        IO_PDX_LOG.info("Created material: {0} ({1})".format(mat_name, mat_type))
+        IO_PDX_LOG.info(f"Created material - {mat_name} ({mat_type})")
         if self.apply_mat:
             selected_objs = [obj for obj in context.selected_objects if isinstance(obj.data, bpy.types.Mesh)]
             for obj in selected_objs:
                 # for each selected mesh, append the new material
                 obj.data.materials.append(shader)
-                IO_PDX_LOG.info("Applied material: {0} to object: {1}".format(shader.name, obj.name))
+                IO_PDX_LOG.info(f"Applied material '{shader.name}' to object - {obj.name}")
         return {"FINISHED"}
 
     def invoke(self, context, event):
@@ -216,7 +214,7 @@ class IOPDX_OT_material_edit_popup(material_popup, Operator):
         curr_mat = context.scene.io_pdx_material
         mat.name = curr_mat.mat_name
         mat[PDX_SHADER] = curr_mat.mat_type
-        IO_PDX_LOG.info("Edited material: {0} ({1})".format(curr_mat.mat_name, curr_mat.mat_type))
+        IO_PDX_LOG.info(f"Edited material - {curr_mat.mat_name} ({curr_mat.mat_type})")
         return {"FINISHED"}
 
     def invoke(self, context, event):
@@ -387,11 +385,11 @@ class IOPDX_OT_import_mesh(Operator, ImportHelper):
                 join_materials=self.chk_joinmats,
                 bonespace=self.chk_bonespace,
             )
-            self.report({"INFO"}, "[io_pdx_mesh] Finished importing {}".format(self.filepath))
+            self.report({"INFO"}, f"[io_pdx_mesh] Mesh import finished '{self.filepath}'")
             IO_PDX_SETTINGS.last_import_mesh = self.filepath
 
         except Exception as err:
-            IO_PDX_LOG.warning("FAILED to import {0}".format(self.filepath))
+            IO_PDX_LOG.warning(f"FAILED to import '{self.filepath}'")
             IO_PDX_LOG.error(err)
             self.report({"WARNING"}, "Mesh import failed!")
             self.report({"ERROR"}, str(err))
@@ -438,11 +436,11 @@ class IOPDX_OT_import_anim(Operator, ImportHelper):
     def execute(self, context):
         try:
             import_animfile(self.filepath, frame_start=self.int_start)
-            self.report({"INFO"}, "[io_pdx_mesh] Finsihed importing {}".format(self.filepath))
+            self.report({"INFO"}, f"[io_pdx_mesh] Animation import finished {self.filepath}")
             IO_PDX_SETTINGS.last_import_anim = self.filepath
 
         except Exception as err:
-            IO_PDX_LOG.warning("FAILED to import {0}".format(self.filepath))
+            IO_PDX_LOG.warning(f"FAILED to import '{self.filepath}'")
             IO_PDX_LOG.error(err)
             self.report({"WARNING"}, "Animation import failed!")
             self.report({"ERROR"}, str(err))
@@ -562,11 +560,11 @@ class IOPDX_OT_export_mesh(Operator, ExportHelper):
                 sort_verts=self.ddl_sort_vtx,
                 plain_txt=self.chk_plain_txt,
             )
-            self.report({"INFO"}, "[io_pdx_mesh] Finsihed exporting {}".format(self.filepath))
+            self.report({"INFO"}, f"[io_pdx_mesh] Mesh export finished {self.filepath}")
             IO_PDX_SETTINGS.last_export_mesh = self.filepath
 
         except Exception as err:
-            IO_PDX_LOG.warning("FAILED to export {0}".format(self.filepath))
+            IO_PDX_LOG.warning(f"FAILED to export '{self.filepath}'")
             IO_PDX_LOG.error(err)
             self.report({"WARNING"}, "Mesh export failed!")
             self.report({"ERROR"}, str(err))
@@ -664,11 +662,11 @@ class IOPDX_OT_export_anim(Operator, ExportHelper):
                 plain_txt=self.chk_plain_txt,
             )
 
-            self.report({"INFO"}, "[io_pdx_mesh] Finsihed exporting {}".format(self.filepath))
+            self.report({"INFO"}, f"[io_pdx_mesh] Animation export finished! '{self.filepath}'")
             IO_PDX_SETTINGS.last_export_anim = self.filepath
 
         except Exception as err:
-            IO_PDX_LOG.warning("FAILED to export {0}".format(self.filepath))
+            IO_PDX_LOG.warning(f"FAILED to export '{self.filepath}'")
             IO_PDX_LOG.error(err)
             self.report({"WARNING"}, "Animation export failed!")
             self.report({"ERROR"}, str(err))
@@ -724,8 +722,7 @@ class IOPDX_OT_ignore_bone(Operator):
 
 """ ====================================================================================================================
     UI classes for the import/export tool.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
 class PDXUI(object):
@@ -741,7 +738,7 @@ class IOPDX_PT_PDXblender_info(PDXUI, Panel):
     panel_order = 0
 
     def draw(self, context):
-        self.layout.label(text="PDX Blender Tools - v{}".format(github.CURRENT_VERSION), icon="TOOL_SETTINGS")
+        self.layout.label(text=f"PDX Blender Tools - v{github.CURRENT_VERSION}", icon="TOOL_SETTINGS")
 
         row = self.layout.row(align=True)
         split = row.split(factor=0.85, align=True)
@@ -750,7 +747,7 @@ class IOPDX_PT_PDXblender_info(PDXUI, Panel):
         if github.AT_LATEST is False:
             split = col1.split(factor=0.4, align=True)
             col1, col2 = split.column(align=True), split.column(align=True)
-            btn_txt = "UPDATE - v{}".format(github.LATEST_VERSION)
+            btn_txt = f"UPDATE - v{github.LATEST_VERSION}"
             col2.operator("wm.url_open", icon="OUTLINER_OB_LIGHT", text=btn_txt).url = str(
                 github.LATEST_URL.get("blender", github.LATEST_RELEASE)
             )

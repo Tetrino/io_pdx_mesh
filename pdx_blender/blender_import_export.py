@@ -10,10 +10,10 @@ author : ross-g
 """
 
 import os
-import pathlib
-import time
 from collections import OrderedDict, defaultdict, namedtuple
 from operator import itemgetter
+from pathlib import Path
+from time import perf_counter
 
 try:
     import xml.etree.cElementTree as Xml
@@ -28,15 +28,15 @@ from mathutils import Matrix, Quaternion, Vector  # type: ignore
 
 from .. import IO_PDX_LOG, pdx_data
 from ..library import (
-    PDX_ANIMATION,
-    PDX_DECIMALPTS,
+    PDX_ANIMATION,  # noqa: F401
+    PDX_DECIMALPTS,  # noqa: F401
     PDX_IGNOREJOINT,
     PDX_MAXSKININFS,
     PDX_MAXUVSETS,
     PDX_MESHINDEX,
-    PDX_ROUND_ROT,
+    PDX_ROUND_ROT,  # noqa: F401
     PDX_ROUND_SCALE,
-    PDX_ROUND_TRANS,
+    PDX_ROUND_TRANS,  # noqa: F401
     PDX_SHADER,
     allow_debug_logging,
     get_lod_level,
@@ -44,8 +44,7 @@ from ..library import (
 
 """ ====================================================================================================================
     Variables.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 # fmt: off
 SPACE_MATRIX = Matrix((
@@ -66,8 +65,7 @@ BONESPACE_MATRIX = Matrix((
 
 """ ====================================================================================================================
     Helper functions.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
 def util_round(data, ndigits=0):
@@ -136,7 +134,7 @@ def set_local_axis_display(state, data_type):
             if node.data:
                 node.data.show_axes = state
         except Exception as err:
-            IO_PDX_LOG.warning("could not display local axis for node - {0}".format(node.name))
+            IO_PDX_LOG.warning(f"Could not display local axis for node - {node.name}")
             IO_PDX_LOG.error(err)
 
 
@@ -190,13 +188,13 @@ def get_material_textures(blender_material):
             n for n in nodes if isinstance(n, bpy.types.ShaderNodeOutputMaterial) and n.inputs["Surface"].is_linked
         )
     except StopIteration:
-        raise RuntimeError("No connected 'Material Output' found for material: {0}".format(blender_material.name))  # noqa: B904
+        raise RuntimeError(f"No connected 'Material Output' found for material: {blender_material.name}")  # noqa: B904
 
     surface_input = material_output.inputs["Surface"].links[0]
     shader_root = surface_input.from_node
     if not isinstance(surface_input.from_socket, bpy.types.NodeSocketShader):
         raise RuntimeError(
-            "No BSDF shader connected to 'Material Output > Surface' for material: {0}".format(blender_material.name)
+            f"No BSDF shader connected to 'Material Output > Surface' for material: {blender_material.name}"
         )
 
     # follow linked Shader node inputs up the node tree until we find a connected Image Texture node
@@ -214,9 +212,7 @@ def get_material_textures(blender_material):
                     texture_dict[pdxmaterial_slot] = tex_filepath
 
             except StopIteration:
-                IO_PDX_LOG.warning(
-                    "no connected '{0}' image texture found for - {1}".format(bsdf_input, blender_material.name)
-                )
+                IO_PDX_LOG.warning(f"No connected '{bsdf_input}' image texture found for - {blender_material.name}")
 
     return texture_dict
 
@@ -320,7 +316,7 @@ def get_mesh_info(blender_obj, mat_id, split_criteria=None, split_all=False, sor
                 mesh_dict["p"].extend(_position)
                 mesh_dict["n"].extend(_normal)
                 for i, _uv_set in enumerate(uv_setnames):
-                    mesh_dict["u" + str(i)].extend(_uv_coords[i])
+                    mesh_dict[f"u{i}"].extend(_uv_coords[i])
                 if uv_setnames:
                     mesh_dict["ta"].extend(_tangent)
                     mesh_dict["ta"].append(_bitangent_sign)  # UV winding order
@@ -400,10 +396,10 @@ def get_mesh_skin_info(blender_obj, vertex_ids=None):
             try:
                 bone_index = bone_names.index(group_names[group_index])
             except ValueError:
-                msg = "Mesh {0} has vertices skinned to a group ({1}) targeting a missing or excluded armature bone! Check all bones using the '{2}' property.".format(
-                    mesh.name, group_names[group_index], PDX_IGNOREJOINT
+                raise RuntimeError(  # noqa: B904
+                    f"Mesh {mesh.name} has vertices skinned to a group ({group_names[group_index]}) targeting a missing"
+                    f" or excluded armature bone! Check any bones with the '{PDX_IGNOREJOINT}' property."
                 )
-                raise RuntimeError(msg)  # noqa: B904
 
             if group_index < len(blender_obj.vertex_groups):
                 # check we actually want this vertex (in case of material split meshes)
@@ -417,9 +413,7 @@ def get_mesh_skin_info(blender_obj, vertex_ids=None):
     for vtx in vertex_ids:
         # if we have excess influences, prune them and renormalise weights
         if len(vert_weights[vtx]) > PDX_MAXSKININFS:
-            IO_PDX_LOG.warning(
-                "Mesh '{0}' has vertices skinned to more than {1} vertex groups.".format(mesh.name, PDX_MAXSKININFS)
-            )
+            IO_PDX_LOG.warning(f"Mesh '{mesh.name}' has vertices skinned to more than {PDX_MAXSKININFS} vertex groups.")
             # sort by influence and remove the smallest
             inf_weights = sorted(vert_weights[vtx].items(), key=itemgetter(1), reverse=True)
             inf_weights = dict(inf_weights[:PDX_MAXSKININFS])
@@ -620,8 +614,7 @@ def swap_coord_space(data, space_mat=SPACE_MATRIX, space_mat_inv=SPACE_MATRIX_IN
 
 """ ====================================================================================================================
     Functions.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
 def create_node_texture(node_tree, tex_filepath, as_data=False):
@@ -646,7 +639,7 @@ def create_node_texture(node_tree, tex_filepath, as_data=False):
             teximage_node.use_custom_color = True
 
         if not os.path.isfile(tex_filepath):
-            IO_PDX_LOG.warning("unable to find texture filepath - {0}".format(tex_filepath))
+            IO_PDX_LOG.warning(f"Unable to find texture filepath - '{tex_filepath}'")
 
         new_image.use_fake_user = True
         new_image.alpha_mode = "CHANNEL_PACKED"
@@ -795,7 +788,7 @@ def create_locator(PDX_locator, PDX_bone_dict):
                 parent_Xform = Matrix.Translation(loc) @ rot.to_matrix().to_4x4() @ Matrix.Scale(1.0, 4)
         else:
             IO_PDX_LOG.warning(
-                "unable to create locator '{0}' (missing parent '{1}' in file data)".format(PDX_locator.name, parent[0])
+                f"Unable to create locator '{PDX_locator.name}' (missing parent '{parent[0]}' in file data)"
             )
             bpy.data.objects.remove(new_loc)
             return
@@ -896,7 +889,7 @@ def create_skeleton(PDX_bone_list, convert_bonespace=False):
         try:
             safemat = Matrix.Scale(1.0 / scale[0], 4) @ mat
         except ZeroDivisionError:  # guard against zero scale bones...
-            IO_PDX_LOG.warning("bad transform found on bone '{0}' (defaulting to bone scale 1.0)".format(unique_name))
+            IO_PDX_LOG.warning(f"Bad transform found on bone '{unique_name}' (defaulting to bone scale 1.0)")
             safemat = Matrix.Translation(loc) @ rot.to_matrix().to_4x4() @ Matrix.Scale(1.0, 4)
 
         # determine avg distance to any children
@@ -927,7 +920,7 @@ def create_skeleton(PDX_bone_list, convert_bonespace=False):
         if convert_bonespace:
             new_bone.matrix = swap_coord_space(safemat.inverted_safe()) @ BONESPACE_MATRIX
 
-        IO_PDX_LOG.debug("new bone created - {}".format(new_bone.name))
+        IO_PDX_LOG.debug(f"New bone created - '{new_bone.name}'")
 
     # set or correct some bone settings based on hierarchy
     for bone in bone_list:
@@ -1055,7 +1048,7 @@ def create_mesh(PDX_mesh, name=None):
 
     # apply the UV data channels
     for idx in uv_Ch:
-        uvSetName = "map" + str(idx + 1)
+        uvSetName = f"map{idx + 1}"
         new_mesh.uv_layers.new(name=uvSetName)
 
         uvArray = []
@@ -1117,10 +1110,10 @@ def create_anim_keys(armature, bone_name, key_dict, timestart, pose):
     pose_bone = armature.pose.bones[bone_name]
 
     # validate keyframe counts per attribute
-    duration = list(set(len(keyframes) for keyframes in key_dict.values()))
+    duration = set(len(keyframes) for keyframes in key_dict.values())
     if len(duration) != 1:
-        raise RuntimeError("Inconsistent keyframe animation lengths across attributes. {0}".format(bone_name))
-    duration = duration[0]
+        raise RuntimeError(f"Inconsistent keyframe animation lengths across attributes (on '{bone_name}')")
+    duration = duration.pop()
 
     # calculate start and end frames
     timestart = int(timestart)
@@ -1181,18 +1174,17 @@ def create_anim_keys(armature, bone_name, key_dict, timestart, pose):
 
 """ ====================================================================================================================
     Main IO functions.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
-@allow_debug_logging
+# @allow_debug_logging
 def import_meshfile(meshpath, imp_mesh=True, imp_skel=True, imp_locs=True, join_materials=True, **kwargs):
     # kwargs wrangling
     # correct bone orientation on import
     bonespace = kwargs.get("bonespace", False)
 
-    start = time.time()
-    IO_PDX_LOG.info("importing - {0}".format(meshpath))
+    start = perf_counter()
+    IO_PDX_LOG.info(f"Importing - '{meshpath}'")
 
     # read the file into an XML structure
     asset_elem = pdx_data.read_meshfile(meshpath)
@@ -1206,7 +1198,7 @@ def import_meshfile(meshpath, imp_mesh=True, imp_skel=True, imp_locs=True, join_
 
     # go through shapes
     for i, node in enumerate(shapes):
-        IO_PDX_LOG.info("creating node {0}/{1} - {2}".format(i + 1, len(shapes), node.tag))
+        IO_PDX_LOG.info(f"Creating node [{i + 1}/{len(shapes)}] - '{node.tag}'")
 
         # create the skeleton first, so we can skin the mesh to it
         rig = None
@@ -1219,7 +1211,7 @@ def import_meshfile(meshpath, imp_mesh=True, imp_skel=True, imp_locs=True, join_
                 scene_bone_dict[pdx_bone.name] = pdx_bone.tx
 
             if imp_skel:
-                IO_PDX_LOG.info("creating skeleton -")
+                IO_PDX_LOG.info(f"Creating skeleton - {len(pdx_bone_list)} bones")
                 rig = create_skeleton(pdx_bone_list, convert_bonespace=bonespace)
 
         # then create all the meshes
@@ -1227,16 +1219,16 @@ def import_meshfile(meshpath, imp_mesh=True, imp_skel=True, imp_locs=True, join_
         if imp_mesh and meshes:
             created = []
             for mat_idx, m in enumerate(meshes):
-                IO_PDX_LOG.info("creating mesh -")
+                IO_PDX_LOG.info(f"Creating mesh - {mat_idx}")
                 pdx_mesh = pdx_data.PDXData(m)
                 pdx_material = getattr(pdx_mesh, "material", None)
                 pdx_skin = getattr(pdx_mesh, "skin", None)
 
                 # create the geometry
                 if join_materials:
-                    meshmaterial_name = node.tag if mat_idx == 0 else "{0}-{1:0>3}".format(node.tag, mat_idx)
+                    meshmaterial_name = node.tag if mat_idx == 0 else f"{node.tag}-{mat_idx:0>3}"
                 else:
-                    meshmaterial_name = "{0}-{1:0>3}".format(node.tag, mat_idx)
+                    meshmaterial_name = f"{node.tag}-{mat_idx:0>3}"
                 mesh, obj = create_mesh(pdx_mesh, name=meshmaterial_name)
                 created.append(obj)
 
@@ -1245,12 +1237,12 @@ def import_meshfile(meshpath, imp_mesh=True, imp_skel=True, imp_locs=True, join_
 
                 # create the material
                 if pdx_material:
-                    IO_PDX_LOG.info("creating material - {0}".format(pdx_material.shader[0]))
+                    IO_PDX_LOG.info(f"Creating material - '{pdx_material.shader[0]}'")
                     create_material(pdx_material, mesh, os.path.split(meshpath)[0])
 
                 # create the vertex group skin
                 if rig and pdx_skin:
-                    IO_PDX_LOG.info("creating skinning data -")
+                    IO_PDX_LOG.info("Creating skinning data -")
                     create_skin(pdx_skin, pdx_bone_list, obj, rig)
 
             if join_materials and len(created) > 1:
@@ -1263,12 +1255,12 @@ def import_meshfile(meshpath, imp_mesh=True, imp_skel=True, imp_locs=True, join_
     # go through locators
     if imp_locs and locators:
         for i, loc in enumerate(locators):
-            IO_PDX_LOG.info("creating locator {0}/{1} - {2}".format(i + 1, len(locators), loc.tag))
+            IO_PDX_LOG.info(f"Creating locator [{i + 1}/{len(locators)}] - '{loc.tag}'")
             pdx_locator = pdx_data.PDXData(loc)
             obj = create_locator(pdx_locator, scene_bone_dict)
 
     bpy.ops.object.select_all(action="DESELECT")
-    IO_PDX_LOG.info("import finished! ({0:.4f} sec)".format(time.time() - start))
+    IO_PDX_LOG.info(f"Import finished! ({perf_counter() - start:0.4f} sec)")
 
 
 @allow_debug_logging
@@ -1284,8 +1276,8 @@ def export_meshfile(meshpath, exp_mesh=True, exp_skel=True, exp_locs=True, exp_s
     # with plain text file option
     plain_txt = kwargs.get("plain_txt", False)
 
-    start = time.time()
-    IO_PDX_LOG.info("exporting - {0}".format(meshpath))
+    start = perf_counter()
+    IO_PDX_LOG.info(f"Exporting - '{meshpath}'")
 
     # create an XML structure to store the object hierarchy
     root_xml = Xml.Element("File")
@@ -1312,13 +1304,13 @@ def export_meshfile(meshpath, exp_mesh=True, exp_skel=True, exp_locs=True, exp_s
             # create parent element for node data, if exporting meshes
             obj_name = obj.data.name
 
-            IO_PDX_LOG.info("writing node {0}/{1} - {2}".format(i + 1, len(blender_meshes), obj_name))
+            IO_PDX_LOG.info(f"Writing node [{i + 1}/{len(blender_meshes)}] - '{obj_name}'")
             objnode_xml = Xml.SubElement(object_xml, obj_name)
 
             # populate LOD attribute on object element
             lod_match = get_lod_level(obj_name)
             if lod_match is not None:
-                IO_PDX_LOG.info("writing lod index - {0}".format(lod_match))
+                IO_PDX_LOG.info(f"Writing lod index - {lod_match}")
                 objnode_xml.set("lod", [lod_match])
 
             # one object can have multiple materials on a per face basis
@@ -1330,7 +1322,7 @@ def export_meshfile(meshpath, exp_mesh=True, exp_skel=True, exp_locs=True, exp_s
                     continue
 
                 # create parent element for this mesh (mesh here being faces sharing a material, within one object)
-                IO_PDX_LOG.info("writing mesh - {0}".format(mat_idx))
+                IO_PDX_LOG.info(f"Writing mesh - {mat_idx}")
                 meshnode_xml = Xml.SubElement(objnode_xml, "mesh")
 
                 # get all necessary info about this set of faces and determine which unique verts they include
@@ -1353,7 +1345,7 @@ def export_meshfile(meshpath, exp_mesh=True, exp_skel=True, exp_locs=True, exp_s
                         aabbnode_xml.set(key, mesh_info_dict[key])
 
                 # create parent element for material data
-                IO_PDX_LOG.info("writing material -")
+                IO_PDX_LOG.info("Writing material -")
                 materialnode_xml = Xml.SubElement(meshnode_xml, "material")
                 # populate material attributes
                 materialnode_xml.set("shader", [get_material_shader(blender_mat)])
@@ -1364,7 +1356,7 @@ def export_meshfile(meshpath, exp_mesh=True, exp_skel=True, exp_locs=True, exp_s
                 # create parent element for skin data, if the mesh is skinned
                 skin_info_dict = get_mesh_skin_info(obj, vert_ids)
                 if exp_skel and skin_info_dict:
-                    IO_PDX_LOG.info("writing skinning data -")
+                    IO_PDX_LOG.info("Writing skinning data -")
                     skinnode_xml = Xml.SubElement(meshnode_xml, "skin")
                     for key in ["bones", "ix", "w"]:
                         if key in skin_info_dict and skin_info_dict[key]:
@@ -1373,7 +1365,7 @@ def export_meshfile(meshpath, exp_mesh=True, exp_skel=True, exp_locs=True, exp_s
             bone_info_list = get_mesh_skeleton_info(obj)
             # create parent element for skeleton data, if the mesh is skinned
             if exp_skel and bone_info_list:
-                IO_PDX_LOG.info("writing skeleton -")
+                IO_PDX_LOG.info("Writing skeleton -")
                 skeletonnode_xml = Xml.SubElement(objnode_xml, "skeleton")
 
                 # create sub-elements for each bone, populate bone attributes
@@ -1386,7 +1378,7 @@ def export_meshfile(meshpath, exp_mesh=True, exp_skel=True, exp_locs=True, exp_s
     if exp_skel and not exp_mesh:
         # create dummy element for node data, if exporting bones but not exporting meshes
         obj_name = "skel_frame"
-        IO_PDX_LOG.info("writing node - {0}".format(obj_name))
+        IO_PDX_LOG.info(f"Writing node - '{obj_name}'")
         objnode_xml = Xml.SubElement(object_xml, obj_name)
 
         blender_rigs = [obj for obj in bpy.data.objects if isinstance(obj.data, bpy.types.Armature)]
@@ -1395,7 +1387,7 @@ def export_meshfile(meshpath, exp_mesh=True, exp_skel=True, exp_locs=True, exp_s
             blender_rigs = [obj for obj in blender_rigs if obj.select_get()]
 
         if len(blender_rigs) > 1:
-            raise RuntimeError("Unable to resolve a single armature for export. {0}".format(blender_rigs))
+            raise RuntimeError(f"Unable to resolve a single armature for export. ({blender_rigs})")
 
         rig_bones = get_skeleton_hierarchy(blender_rigs[0])
 
@@ -1405,7 +1397,7 @@ def export_meshfile(meshpath, exp_mesh=True, exp_skel=True, exp_locs=True, exp_s
         bone_info_list = get_bones_info(rig_bones)
         # create parent element for skeleton data
         if exp_skel and bone_info_list:
-            IO_PDX_LOG.info("writing skeleton -")
+            IO_PDX_LOG.info("Writing skeleton -")
             skeletonnode_xml = Xml.SubElement(objnode_xml, "skeleton")
 
             # create sub-elements for each bone, populate bone attributes
@@ -1426,7 +1418,7 @@ def export_meshfile(meshpath, exp_mesh=True, exp_skel=True, exp_locs=True, exp_s
             blender_empties = [obj for obj in blender_empties if obj.select_get()]
 
         loc_info_list = get_locators_info(blender_empties)
-        IO_PDX_LOG.info("writing locators -")
+        IO_PDX_LOG.info("Writing locators -")
 
         # create sub-elements for each locator, populate locator attributes
         for loc_info_dict in loc_info_list:
@@ -1436,23 +1428,22 @@ def export_meshfile(meshpath, exp_mesh=True, exp_skel=True, exp_locs=True, exp_s
                     locnode_xml.set(key, loc_info_dict[key])
 
     # write the binary file from our XML structure
-    IO_PDX_LOG.info("writing .mesh file -")
+    IO_PDX_LOG.info("Writing .mesh file -")
     pdx_data.write_meshfile(meshpath, root_xml)
     if plain_txt:
-        IO_PDX_LOG.info("writing .txt file -")
-        with open(str(pathlib.Path(meshpath).with_suffix(".txt")), "wt") as fp:
-            fp.write(str(pdx_data.PDXData(root_xml)) + "\n")
+        IO_PDX_LOG.info("Writing .txt file -")
+        Path(meshpath).with_suffix(".txt").write_text(f"{pdx_data.PDXData(root_xml)}\n")
 
     if bpy.ops.object.mode_set.poll():
         bpy.ops.object.mode_set(mode="OBJECT")
     bpy.ops.object.select_all(action="DESELECT")
-    IO_PDX_LOG.info("export finished! ({0:.4f} sec)".format(time.time() - start))
+    IO_PDX_LOG.info(f"Export finished! ({perf_counter() - start:0.4f} sec)")
 
 
 @allow_debug_logging
 def import_animfile(animpath, frame_start=1, **kwargs):
-    start = time.time()
-    IO_PDX_LOG.info("importing - {0}".format(animpath))
+    start = perf_counter()
+    IO_PDX_LOG.info(f"Importing - '{animpath}'")
 
     # read the file into an XML structure
     asset_elem = pdx_data.read_meshfile(animpath)
@@ -1464,31 +1455,31 @@ def import_animfile(animpath, frame_start=1, **kwargs):
 
     # set scene animation and playback settings
     fps = int(info.attrib["fps"][0])
-    IO_PDX_LOG.info("setting playback speed - {0}".format(fps))
+    IO_PDX_LOG.info(f"Setting playback speed - {fps}")
     try:
         bpy.context.scene.render.fps = fps
     except Exception as err:
         IO_PDX_LOG.error(err)
-        raise RuntimeError("Unsupported animation speed. {0}".format(fps))  # noqa: B904
+        raise RuntimeError(f"Unsupported animation speed. ({fps})")  # noqa: B904
     bpy.context.scene.render.fps_base = 1.0
 
-    IO_PDX_LOG.info("setting playback range - ({0},{1})".format(frame_start, (frame_start + framecount - 1)))
+    IO_PDX_LOG.info(f"Setting playback range - ({frame_start},{frame_start + framecount - 1})")
     bpy.context.scene.frame_start = frame_start
     bpy.context.scene.frame_end = frame_start + framecount - 1
     bpy.context.scene.frame_set(frame_start)
 
     # find armature and bones being animated in the scene
-    IO_PDX_LOG.info("finding armature -")
+    IO_PDX_LOG.info("Finding armature -")
     matching_rigs = [get_rig_from_bone_name(clean_imported_name(bone.tag)) for bone in info]
     matching_rigs = list(set(rig for rig in matching_rigs if rig))
 
     # break on failing to find an armature to animate
     if len(matching_rigs) != 1:
-        raise RuntimeError("Missing unique armature required for animation: {0}".format(matching_rigs))
+        raise RuntimeError(f"Missing unique armature required for animation: {matching_rigs}")
     rig = matching_rigs[0]
 
     # check armature has all required bones, check scale uniformity
-    IO_PDX_LOG.info("finding bones -")
+    IO_PDX_LOG.info("Finding bones -")
     scale_length = set()
     bone_errors = []
     for bone in info:
@@ -1499,19 +1490,19 @@ def import_animfile(animpath, frame_start=1, **kwargs):
             edit_bone = pose_bone.bone  # rig.data.bones[bone_name]
         except KeyError:
             bone_errors.append(bone_name)
-            IO_PDX_LOG.warning("failed to find bone - {0}".format(bone_name))
+            IO_PDX_LOG.warning(f"Failed to find bone - {bone_name}")
 
     # break on missing bones
     if bone_errors:
-        raise RuntimeError("Missing bones required for animation: {0}".format(bone_errors))
+        raise RuntimeError(f"Missing bones required for animation: {bone_errors}")
 
     # break on variable size scale vectors
     if len(scale_length) != 1:
-        raise NotImplementedError("Mixed length scale vectors ({0}) are not supported".format(scale_length))
+        raise NotImplementedError(f"Mixed length scale vectors ({scale_length}) are not supported")
     # support both uniform ([x]) and non-uniform ([x,y,z]) scale data
     scale_length = scale_length.pop()
     scale_padding = 4 - scale_length
-    IO_PDX_LOG.info("animation supports {0}uniform scale -".format("non-" if scale_length > 1 else ""))
+    IO_PDX_LOG.info(f"Animation supports {'non-' if scale_length > 1 else ''}uniform scale -")
 
     # clear any current pose before attempting to load the animation
     bpy.context.view_layer.objects.active = rig
@@ -1522,7 +1513,7 @@ def import_animfile(animpath, frame_start=1, **kwargs):
 
     # set the initial pose (includes un-keyframed bones)
     initial_pose = dict()
-    IO_PDX_LOG.info("setting initial pose on bones - {0}".format(len(info)))
+    IO_PDX_LOG.info(f"Setting initial pose - {len(info)} bones")
     for bone in info:
         bone_name = clean_imported_name(bone.tag)
         pose_bone = rig.pose.bones[bone_name]
@@ -1585,17 +1576,17 @@ def import_animfile(animpath, frame_start=1, **kwargs):
         bone_keys = all_bone_keyframes[bone_name]
         # check bone has keyframe values
         if bone_keys.values():
-            IO_PDX_LOG.info("setting {0} keyframes on bone - {1}".format(",".join(bone_keys.keys()), bone_name))
+            IO_PDX_LOG.info(f"Setting {list(bone_keys.keys())} keyframes on bone - '{bone_name}'")
             non_uni_keys = [i for i, data in enumerate(bone_keys.get("s", [])) if not len(set(data)) == 1]
             if any(non_uni_keys):
-                IO_PDX_LOG.debug("Bone: {0} has non-uniform scale keyframes at: {1}".format(bone_name, non_uni_keys))
+                IO_PDX_LOG.debug(f"Bone '{bone_name}' has non-uniform scale keyframes at - {non_uni_keys}")
             create_anim_keys(rig, bone_name, bone_keys, frame_start, initial_pose)
 
     bpy.context.scene.frame_set(frame_start)
     bpy.context.view_layer.update()
 
     bpy.ops.object.select_all(action="DESELECT")
-    IO_PDX_LOG.info("import finished! ({0:.4f} sec)".format(time.time() - start))
+    IO_PDX_LOG.info(f"Import finished! ({perf_counter() - start:0.4f} sec)")
 
 
 @allow_debug_logging
@@ -1606,15 +1597,13 @@ def export_animfile(animpath, frame_start=1, frame_end=10, **kwargs):
     # with plain text file option
     plain_txt = kwargs.get("plain_txt", False)
 
-    start = time.time()
-    IO_PDX_LOG.info("exporting - {0}".format(animpath))
+    start = perf_counter()
+    IO_PDX_LOG.info(f"Exporting - {animpath}")
 
     curr_frame = bpy.context.scene.frame_start
     if frame_start != int(frame_start) or frame_end != int(frame_end):
         raise RuntimeError(
-            "Invalid animation range selected ({0},{1}). Only whole frames are supported.".format(
-                frame_start, frame_end
-            )
+            f"Invalid animation range selected ({frame_start},{frame_end}). Only whole frames are supported."
         )
     frame_start = int(frame_start)
     frame_end = int(frame_end)
@@ -1627,7 +1616,7 @@ def export_animfile(animpath, frame_start=1, frame_end=10, **kwargs):
     info_xml = Xml.SubElement(root_xml, "info")
 
     # fill in animation info and initial pose
-    IO_PDX_LOG.info("gathering animation info -")
+    IO_PDX_LOG.info("Gathering animation info -")
     fps = bpy.context.scene.render.fps
     info_xml.set("fps", [float(fps)])
 
@@ -1653,7 +1642,7 @@ def export_animfile(animpath, frame_start=1, frame_end=10, **kwargs):
     all_bone_keyframes = get_scene_animdata(rig, export_bones, frame_start, frame_end)
 
     # for each bone, write sample types and describe the initial offset from parent
-    IO_PDX_LOG.info("gathering initial bone transforms -")
+    IO_PDX_LOG.info("Gathering initial bone transforms -")
     bpy.context.scene.frame_set(frame_start)
     for bone in export_bones:
         pose_bone = rig.pose.bones[bone.name]
@@ -1688,11 +1677,11 @@ def export_animfile(animpath, frame_start=1, frame_end=10, **kwargs):
 
     # create root element for animation keyframe data
     samples_xml = Xml.SubElement(root_xml, "samples")
-    IO_PDX_LOG.info("gathering keyframes -")
+    IO_PDX_LOG.info("Gathering keyframes -")
     for bone_name in all_bone_keyframes:
         bone_keys = all_bone_keyframes[bone_name]
         if bone_keys:
-            IO_PDX_LOG.info("gathering {0} keyframes for bone - {1}".format(",".join(bone_keys.keys()), bone_name))
+            IO_PDX_LOG.info(f"Gathering {list(bone_keys)} keyframes for bone - '{bone_name}'")
 
     # pack all scene animation data into flat keyframe lists
     t_packed, q_packed, s_packed = [], [], []
@@ -1718,14 +1707,13 @@ def export_animfile(animpath, frame_start=1, frame_end=10, **kwargs):
         samples_xml.set("s", s_packed)
 
     # write the binary file from our XML structure
-    IO_PDX_LOG.info("writing .anim file")
+    IO_PDX_LOG.info("Writing .anim file")
     pdx_data.write_animfile(animpath, root_xml)
     if plain_txt:
-        IO_PDX_LOG.info("writing .txt file -")
-        with open(str(pathlib.Path(animpath).with_suffix(".txt")), "wt") as fp:
-            fp.write(str(pdx_data.PDXData(root_xml)) + "\n")
+        IO_PDX_LOG.info("Writing .txt file -")
+        Path(animpath).with_suffix(".txt").write_text(f"{pdx_data.PDXData(root_xml)}\n")
 
     bpy.context.scene.frame_set(curr_frame)
 
     bpy.ops.object.select_all(action="DESELECT")
-    IO_PDX_LOG.info("export finished! ({0:.4f} sec)".format(time.time() - start))
+    IO_PDX_LOG.info(f"Export finished! ({perf_counter() - start:0.4f} sec)")

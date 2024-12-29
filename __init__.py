@@ -1,12 +1,13 @@
 """
 IO PDX Mesh Python module.
-Supports Maya 2018 and up, supports Blender 2.83 and up.
+Supports Maya and Blender.
 
 author : ross-g
 """
 
 from __future__ import unicode_literals
 
+import importlib
 import inspect
 import json
 import logging
@@ -15,7 +16,6 @@ import sys
 import traceback
 import zipfile
 from collections import OrderedDict
-from imp import reload
 
 # vendored package imports
 from .external import tomllib
@@ -38,8 +38,7 @@ with open(path.join(root_path, "blender_manifest.toml"), "rb") as fh:
 
 """ ====================================================================================================================
     Setup.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
 # setup module logging
@@ -74,8 +73,7 @@ except Exception as err:
 
 """ ====================================================================================================================
     Startup.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 IO_PDX_LOG, running_from, version = None, None, None
 environment = sys.executable.lower()
@@ -93,7 +91,7 @@ else:
 
     min_version = tuple(IO_PDX_INFO["blender_support_min"])
     if version < min_version:
-        IO_PDX_LOG.warning("UNSUPPORTED VERSION! Update to Blender {0}".format(min_version))
+        IO_PDX_LOG.warning(f"UNSUPPORTED VERSION! Update to Blender {min_version}")
         IO_PDX_INFO["unsupported_version"] = True
 
     try:
@@ -121,24 +119,24 @@ else:
 
     min_version = tuple(IO_PDX_INFO["maya_support_min"])[0]
     if version < min_version:
-        IO_PDX_LOG.warning("UNSUPPORTED VERSION! Update to Maya {0}".format(min_version))
+        IO_PDX_LOG.warning(f"UNSUPPORTED VERSION! Update to Maya {min_version}")
         IO_PDX_INFO["unsupported_version"] = True
 
     try:
         # launch the Maya UI
         from .pdx_maya import maya_ui
 
-        reload(maya_ui)
+        importlib.reload(maya_ui)
         maya_ui.main()
     except Exception as e:
         traceback.print_exc()
         raise e
 
 if running_from is not None:
-    IO_PDX_LOG.info("Running {0} from {1} ({2})".format(__package__, running_from, version))
+    IO_PDX_LOG.info(f"Running {__package__} from {running_from} ({version})")
     IO_PDX_LOG.info(root_path)
 # otherwise, we don't support running with UI setup
 else:
     logging.basicConfig(level=logging.DEBUG, format=log_format)
     IO_PDX_LOG = logging.getLogger(log_name)
-    IO_PDX_LOG.warning('Running without UI from environment "{0}"'.format(sys.executable))
+    IO_PDX_LOG.warning(f'Running without UI from environment "{sys.executable}"')

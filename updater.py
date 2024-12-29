@@ -7,15 +7,10 @@ author : ross-g
 
 import json
 import logging
-import time
 from datetime import date, datetime
 from os.path import splitext
-
-# Py2, Py3 compatibility
-try:
-    from urllib.request import Request, URLError, urlopen
-except ImportError:
-    from urllib2 import Request, URLError, urlopen  # type: ignore
+from time import perf_counter
+from urllib.request import Request, URLError, urlopen
 
 from . import IO_PDX_INFO, IO_PDX_SETTINGS
 
@@ -24,8 +19,7 @@ UPDATER_LOG = logging.getLogger("io_pdx.updater")
 
 """ ====================================================================================================================
     Helper functions.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
 class Github_API(object):
@@ -67,7 +61,7 @@ class Github_API(object):
             recheck = date.today() > datetime.strptime(last_check_date, "%Y-%m-%d").date()
 
         if recheck or force:
-            start = time.time()
+            start = perf_counter()
 
             # get latest release data
             releases_url = "{api}/repos/{owner}/{repo}/releases".format(**self.args)
@@ -76,12 +70,12 @@ class Github_API(object):
                 release_list = self.get_data(releases_url)
                 self.LATEST_RELEASE = release_list[0]
             except URLError as err:
-                UPDATER_LOG.warning("Unable to check for update. ({})".format(err.reason))
+                UPDATER_LOG.warning(f"Unable to check for update. ({err.reason})")
                 return
             except IndexError as err:
-                UPDATER_LOG.warning("Found no releases during update check. ({})".format(err))
+                UPDATER_LOG.warning(f"Found no releases during update check. ({err})")
             except Exception as err:
-                UPDATER_LOG.error("Failed during update check. ({})".format(err))
+                UPDATER_LOG.error(f"Failed during update check. ({err})")
                 return
 
             latest = release_list[0]
@@ -91,8 +85,10 @@ class Github_API(object):
             self.LATEST_URL = {
                 splitext(asset["name"])[0].split("-")[0]: asset["browser_download_url"] for asset in latest["assets"]
             }
-            self.LATEST_NOTES = "{0}\r\nRelease version: {1}\r\n{2}".format(
-                latest["published_at"].split("T")[0], latest["tag_name"], latest["body"]
+            self.LATEST_NOTES = (
+                f"{latest['published_at'].split('T')[0]}\r\n"
+                f"Release version: {latest['tag_name']}\r\n"
+                f"{latest['body']}"
             )
 
             # cache data to settings
@@ -100,8 +96,8 @@ class Github_API(object):
             IO_PDX_SETTINGS.github_latest_url = self.LATEST_URL
             IO_PDX_SETTINGS.github_latest_notes = self.LATEST_NOTES
 
-            IO_PDX_SETTINGS.last_update_check = str(date.today())
-            UPDATER_LOG.info("Checked for update. ({0:.4f} sec)".format(time.time() - start))
+            IO_PDX_SETTINGS.last_update_check = f"{date.today()}"
+            UPDATER_LOG.info(f"Checked for update. ({perf_counter() - start:0.4f} sec)")
 
         else:
             # used cached release data in settings

@@ -16,8 +16,7 @@ SETTINGS_LOG = logging.getLogger("io_pdx.settings")
 
 """ ====================================================================================================================
     Module settings class.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
 class PDXsettings(object):
@@ -28,7 +27,7 @@ class PDXsettings(object):
         else:
             # new settings file
             try:
-                os.makedirs(path.dirname(filepath))
+                os.makedirs(path.dirname(filepath), exist_ok=True)
                 with open(filepath, "w") as _:
                     pass
             except OSError:
@@ -40,18 +39,18 @@ class PDXsettings(object):
         self.app = sys.executable
 
     def __setattr__(self, name, value):
-        result = super(PDXsettings, self).__setattr__(name, value)
+        result = super().__setattr__(name, value)
         self.save_settings_file()
         return result
 
     def __getattr__(self, attr):
         try:
-            return super(PDXsettings, self).__getattr__(attr)
+            return super().__getattr__(attr)
         except AttributeError:
             return None
 
     def __delattr__(self, name):
-        result = super(PDXsettings, self).__delattr__(name)
+        result = super().__delattr__(name)
         self.save_settings_file()
         return result
 
