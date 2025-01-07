@@ -4,39 +4,31 @@ Paradox asset files, Maya import/export interface.
 author : ross-g
 """
 
-from __future__ import print_function, unicode_literals
-
+import importlib
 import os
-import sys
 import webbrowser
 from functools import partial
-from imp import reload
 from textwrap import wrap
 
 import maya.api.OpenMaya as OpenMayaAPI
 import maya.cmds as cmds
-import maya.OpenMayaUI as OpenMayaUI  # type: ignore
 import pymel.core as pmc
 
 try:
+    # Maya < 2025
     from PySide2 import QtCore, QtGui, QtWidgets
-    from shiboken2 import wrapInstance
 except ImportError:
-    from PySide import QtCore, QtGui  # type: ignore
-    from PySide import QtGui as QtWidgets  # type: ignore
-    from shiboken import wrapInstance  # type: ignore
+    # Maya 2025
+    from PySide6 import QtCore, QtGui, QtWidgets  # type: ignore
 
 from .. import ENGINE_SETTINGS, IO_PDX_INFO, IO_PDX_LOG, IO_PDX_SETTINGS
-
-# Py2, Py3 compatibility (Maya 2022+ adopts Py3)
-from ..external.six.moves import range  # type: ignore
 from ..pdx_data import PDXData
 from ..updater import github
 
 try:
     from . import maya_import_export
 
-    reload(maya_import_export)
+    importlib.reload(maya_import_export)
 
     from .maya_import_export import (
         PDX_SHADER,
@@ -58,20 +50,17 @@ except Exception as err:
     IO_PDX_LOG.error(err)
     raise
 
-# Py2, Py3 compatibility (Maya doesn't yet use Py3, this is purely to stop flake8 complaining)
-if sys.version_info >= (3, 0):
-    long = int
-
 
 """ ====================================================================================================================
     Helper functions/classes.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
-def get_maya_mainWindow():
-    pointer = OpenMayaUI.MQtUtil.mainWindow()
-    return wrapInstance(long(pointer), QtWidgets.QMainWindow)
+def get_maya_main_window():
+    app = QtWidgets.QApplication.instance()
+    maya_window = next(w for w in app.topLevelWidgets() if w.objectName() == "MayaWindow")
+
+    return maya_window
 
 
 def set_widget_icon(widget, icon_name):
@@ -83,7 +72,7 @@ def set_widget_icon(widget, icon_name):
         >>> cmds.resourceManager()
     """
     try:
-        widget.setIcon(QtGui.QIcon(":/{0}".format(icon_name)))
+        widget.setIcon(QtGui.QIcon(f":/{icon_name}"))
     except Exception as err:
         IO_PDX_LOG.error(err)
 
@@ -128,7 +117,7 @@ def VLine():
 
 class CollapsingGroupBox(QtWidgets.QGroupBox):
     def __init__(self, title, parent=None, **kwargs):
-        super(CollapsingGroupBox, self).__init__(title, parent, **kwargs)
+        super().__init__(title, parent, **kwargs)
         self._parent = parent
         self.font_height = QtGui.QFontMetrics(self.font()).height()
         self.line = HLine()
@@ -187,7 +176,7 @@ class CollapsingGroupBox(QtWidgets.QGroupBox):
 
 class CustomFileDialog(QtWidgets.QFileDialog):
     def __init__(self, *args, **kwargs):
-        super(CustomFileDialog, self).__init__(*args, **kwargs)
+        super().__init__(*args, **kwargs)
         self.setOption(QtWidgets.QFileDialog.DontUseNativeDialog, True)
         self.setViewMode(QtWidgets.QFileDialog.Detail)
 
@@ -239,7 +228,7 @@ class CustomFileDialog(QtWidgets.QFileDialog):
 
 class CustomFileOptions(QtWidgets.QGroupBox):
     def __init__(self, title, parent=None, **kwargs):
-        super(CustomFileOptions, self).__init__(title, parent, **kwargs)
+        super().__init__(title, parent, **kwargs)
         self.setFixedWidth(175)
         self.setLayout(QtWidgets.QVBoxLayout())
         self.layout().setContentsMargins(8, 22, 8, 8)
@@ -261,16 +250,14 @@ class CustomFileOptions(QtWidgets.QGroupBox):
 
 """ ====================================================================================================================
     UI classes for the import/export tool.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
 class PDX_UI(QtWidgets.QDialog):
     def __init__(self, parent=None):
         # parent to the Maya main window.
-        parent = parent or get_maya_mainWindow()
-
-        super(PDX_UI, self).__init__(parent)
+        parent = parent or get_maya_main_window()
+        super().__init__(parent)
         self.popup = None  # type: QtWidgets.QWidget
         self.settings = None  # type: QtCore.QSettings
         self.old_position = self.pos()
@@ -295,7 +282,7 @@ class PDX_UI(QtWidgets.QDialog):
         self.info_Layout = QtWidgets.QHBoxLayout()
         self.icon_Info = QtWidgets.QLabel()
         self.icon_Info.setPixmap(QtGui.QPixmap(":/toolSettings.png"))
-        self.lbl_Info = QtWidgets.QLabel("PDX Maya Tools - v{0}".format(github.CURRENT_VERSION), self)
+        self.lbl_Info = QtWidgets.QLabel(f"PDX Maya Tools - v{github.CURRENT_VERSION}", self)
         self.btn_Close = QtWidgets.QToolButton(self)
         set_widget_icon(self.btn_Close, "closeTabButton.png")
 
@@ -306,7 +293,7 @@ class PDX_UI(QtWidgets.QDialog):
 
         self.btn_Donate = QtWidgets.QPushButton("Donate", self)
         set_widget_icon(self.btn_Donate, "SE_FavoriteStar.png")
-        self.btn_UpdateVersion = QtWidgets.QPushButton("UPDATE - v{0}".format(github.LATEST_VERSION), self)
+        self.btn_UpdateVersion = QtWidgets.QPushButton(f"UPDATE - v{github.LATEST_VERSION}", self)
         set_widget_icon(self.btn_UpdateVersion, "LM_ambientLight.png")
         self.btn_AboutVersion = QtWidgets.QPushButton("", self)
         set_widget_icon(self.btn_AboutVersion, "info.png")
@@ -476,7 +463,7 @@ class PDX_UI(QtWidgets.QDialog):
 
         self.btn_Close.clicked.connect(self.close)
         self.btn_UpdateVersion.clicked.connect(
-            partial(webbrowser.open, str(github.LATEST_URL.get("maya", github.LATEST_RELEASE)))
+            partial(webbrowser.open, f"{github.LATEST_URL.get('maya', github.LATEST_RELEASE)}")
         )
         self.btn_AboutVersion.clicked.connect(self.show_update_notes)
         self.btn_Donate.clicked.connect(partial(webbrowser.open, IO_PDX_INFO["sponsor_url"]))
@@ -524,11 +511,11 @@ class PDX_UI(QtWidgets.QDialog):
 
         # restore groupbox panels expand state
         for grp in self.findChildren(QtWidgets.QGroupBox):
-            state = bool(self.settings.value("ui/isChecked_{0}".format(grp.objectName()), defaultValue=True))
+            state = bool(self.settings.value(f"ui/isChecked_{grp.objectName()}", defaultValue=True))
             grp.setChecked(state)
 
         # restore engine selection
-        self.ddl_EngineSelect.setCurrentText(IO_PDX_SETTINGS.last_set_engine or ENGINE_SETTINGS.keys()[0])
+        self.ddl_EngineSelect.setCurrentText(IO_PDX_SETTINGS.last_set_engine or list(ENGINE_SETTINGS)[0])
         # restore scene animation fps
         self.spn_AnimationFps.setValue(int(get_animation_fps()))
 
@@ -541,7 +528,7 @@ class PDX_UI(QtWidgets.QDialog):
 
         # store groupbox panels expand state
         for grp in self.findChildren(QtWidgets.QGroupBox):
-            self.settings.setValue("ui/isChecked_{0}".format(grp.objectName()), int(grp.isChecked()))
+            self.settings.setValue(f"ui/isChecked_{grp.objectName()}", int(grp.isChecked()))
 
     @QtCore.Slot()
     def import_mesh(self):
@@ -553,9 +540,9 @@ class PDX_UI(QtWidgets.QDialog):
                 import_meshfile(mesh_filepath, **options)
                 IO_PDX_SETTINGS.last_import_mesh = mesh_filepath
             except Exception as err:
-                IO_PDX_LOG.warning("FAILED to import {0}".format(mesh_filepath))
+                IO_PDX_LOG.warning(f"FAILED to import '{mesh_filepath}'")
                 IO_PDX_LOG.error(err)
-                QtWidgets.QMessageBox.critical(self, "FAILURE", "Mesh import failed!\n\n{0}".format(err))
+                QtWidgets.QMessageBox.critical(self, "FAILURE", f"Mesh import failed!\n\n{err}")
                 MayaProgress.finished()
                 raise
         else:
@@ -569,12 +556,12 @@ class PDX_UI(QtWidgets.QDialog):
             options["progress_fn"] = MayaProgress()
             try:
                 export_meshfile(mesh_filepath, **options)
-                QtWidgets.QMessageBox.information(self, "SUCCESS", "Mesh export finished!\n\n{0}".format(mesh_filepath))
+                QtWidgets.QMessageBox.information(self, "SUCCESS", f"Mesh export finished!\n\n'{mesh_filepath}'")
                 IO_PDX_SETTINGS.last_export_mesh = mesh_filepath
             except Exception as err:
-                IO_PDX_LOG.warning("FAILED to export {0}".format(mesh_filepath))
+                IO_PDX_LOG.warning(f"FAILED to export '{mesh_filepath}'")
                 IO_PDX_LOG.error(err)
-                QtWidgets.QMessageBox.critical(self, "FAILURE", "Mesh export failed!\n\n{0}".format(err))
+                QtWidgets.QMessageBox.critical(self, "FAILURE", f"Mesh export failed!\n\n{err}")
                 MayaProgress.finished()
                 raise
         else:
@@ -590,9 +577,9 @@ class PDX_UI(QtWidgets.QDialog):
                 import_animfile(anim_filepath, **options)
                 IO_PDX_SETTINGS.last_import_anim = anim_filepath
             except Exception as err:
-                IO_PDX_LOG.warning("FAILED to import {0}".format(anim_filepath))
+                IO_PDX_LOG.warning(f"FAILED to import '{anim_filepath}'")
                 IO_PDX_LOG.error(err)
-                QtWidgets.QMessageBox.critical(self, "FAILURE", "Animation import failed!\n\n{0}".format(err))
+                QtWidgets.QMessageBox.critical(self, "FAILURE", f"Animation import failed!\n\n{err}")
                 MayaProgress.finished()
                 raise
         else:
@@ -611,14 +598,12 @@ class PDX_UI(QtWidgets.QDialog):
                     options["frame_start"] = pmc.playbackOptions(query=True, minTime=True)
                     options["frame_end"] = pmc.playbackOptions(query=True, maxTime=True)
                     export_animfile(anim_filepath, **options)
-                QtWidgets.QMessageBox.information(
-                    self, "SUCCESS", "Animation export finished!\n\n{0}".format(anim_filepath)
-                )
+                QtWidgets.QMessageBox.information(self, "SUCCESS", f"Animation export finished!\n\n'{anim_filepath}'")
                 IO_PDX_SETTINGS.last_export_anim = anim_filepath
             except Exception as err:
-                IO_PDX_LOG.warning("FAILED to export {0}".format(anim_filepath))
+                IO_PDX_LOG.warning(f"FAILED to export '{anim_filepath}'")
                 IO_PDX_LOG.error(err)
-                QtWidgets.QMessageBox.critical(self, "FAILURE", "Animation export failed!\n\n{0}".format(err))
+                QtWidgets.QMessageBox.critical(self, "FAILURE", f"Animation export failed!\n\n{err}")
                 MayaProgress.finished()
                 raise
         else:
@@ -635,7 +620,7 @@ class PDX_UI(QtWidgets.QDialog):
     def set_engine(self):
         sel_engine = self.ddl_EngineSelect.currentText()
         IO_PDX_SETTINGS.last_set_engine = sel_engine
-        IO_PDX_LOG.info("Set game engine to: '{0}'".format(sel_engine))
+        IO_PDX_LOG.info(f"Set game engine to - '{sel_engine}'")
 
     @QtCore.Slot()
     def set_fps(self, fps):
@@ -643,7 +628,7 @@ class PDX_UI(QtWidgets.QDialog):
         try:
             set_animation_fps(fps)
         except RuntimeError:
-            QtWidgets.QMessageBox.warning(self, "ERROR", "Unsupported animation speed. ({0} fps)".format(fps))
+            QtWidgets.QMessageBox.warning(self, "ERROR", f"Unsupported animation speed. ({fps} fps)")
             self.spn_AnimationFps.setValue(int(prev_fps))
 
     @QtCore.Slot()
@@ -666,7 +651,7 @@ class PDX_UI(QtWidgets.QDialog):
 
 class MaterialCreatePopup_UI(QtWidgets.QWidget):
     def __init__(self, parent=None):
-        super(MaterialCreatePopup_UI, self).__init__(parent)
+        super().__init__(parent)
         self.parent = parent
         self.setWindowTitle("Create a PDX material")
         self.setWindowFlags(QtCore.Qt.Popup)
@@ -737,16 +722,16 @@ class MaterialCreatePopup_UI(QtWidgets.QWidget):
         if self.use_custom.isChecked() or mat_type == "":
             mat_type = self.custom_type.text()
         # create a mock PDXData object for convenience here to pass to the create_shader function
-        mat_pdx = type(str("Material"), (PDXData, object), {"shader": [mat_type]})
+        mat_pdx = type("Material", (PDXData, object), {"shader": [mat_type]})
         shader, group = create_shader(mat_pdx, mat_name, None)
-        IO_PDX_LOG.info("Created material: {0} ({1})".format(mat_name, mat_type))
+        IO_PDX_LOG.info(f"Created material - '{mat_name}' ({mat_type})")
         if self.apply_mat.isChecked():
             selected_objs = [mesh for mesh in pmc.ls(selection=True, type="mesh", dag=True, noIntermediate=True)]
             for obj in selected_objs:
                 # for each selected mesh, assign the new material
                 obj.backfaceCulling.set(1)
                 pmc.sets(group, edit=True, forceElement=obj)
-                IO_PDX_LOG.info("Applied material: {0} to object: {1}".format(shader, obj))
+                IO_PDX_LOG.info(f"Applied material '{shader}' to object - '{obj}'")
         self.close()
 
     def showEvent(self, event):
@@ -756,7 +741,7 @@ class MaterialCreatePopup_UI(QtWidgets.QWidget):
 
 class MaterialEditPopup_UI(QtWidgets.QWidget):
     def __init__(self, parent=None):
-        super(MaterialEditPopup_UI, self).__init__(parent)
+        super().__init__(parent)
         self.parent = parent
         self.setWindowTitle("Edit a PDX material")
         self.setWindowFlags(QtCore.Qt.Popup)
@@ -833,7 +818,7 @@ class MaterialEditPopup_UI(QtWidgets.QWidget):
 
         pmc.rename(mat, mat_name)
         getattr(mat, PDX_SHADER).set(mat_type)
-        IO_PDX_LOG.info("Edited material: {0} ({1})".format(mat_name, mat_type))
+        IO_PDX_LOG.info(f"Edited material - {mat_name} ({mat_type})")
         self.close()
 
     def showEvent(self, event):
@@ -843,7 +828,7 @@ class MaterialEditPopup_UI(QtWidgets.QWidget):
 
 class MeshIndexPopup_UI(QtWidgets.QWidget):
     def __init__(self, parent=None):
-        super(MeshIndexPopup_UI, self).__init__(parent)
+        super().__init__(parent)
         self.parent = parent
 
         self.setWindowTitle("Set mesh index on PDX meshes")
@@ -900,12 +885,12 @@ class MeshIndexPopup_UI(QtWidgets.QWidget):
 
     @QtCore.Slot()
     def execute(self):
-        IO_PDX_LOG.info("Setting mesh index order...")
+        IO_PDX_LOG.info("Setting mesh index order -")
         for i in range(self.list_meshes.count()):
             item = self.list_meshes.item(i)
             maya_mesh = pmc.PyNode(item.data(QtCore.Qt.UserRole))  # type: pmc.nt.Mesh
             set_mesh_index(maya_mesh, i)
-            IO_PDX_LOG.info("\t{0} - {1}".format(maya_mesh.name(), i))
+            IO_PDX_LOG.info(f"\t{maya_mesh.name()} - {i}")
 
         self.close()
 
@@ -916,9 +901,7 @@ class MeshIndexPopup_UI(QtWidgets.QWidget):
 
 class MeshImport_UI(CustomFileDialog):
     def __init__(self, parent=None):
-        super(MeshImport_UI, self).__init__(
-            parent=parent, caption="Import a mesh file", filter="PDX Mesh files (*.mesh)"
-        )
+        super().__init__(parent=parent, caption="Import a mesh file", filter="PDX Mesh files (*.mesh)")
         options_group = CustomFileOptions("Import Settings", self)
         self.addCustomOptions(options_group)
 
@@ -959,9 +942,7 @@ class MeshImport_UI(CustomFileDialog):
 
 class AnimImport_UI(CustomFileDialog):
     def __init__(self, parent=None):
-        super(AnimImport_UI, self).__init__(
-            parent=parent, caption="Import a anim file", filter="PDX Animation files (*.anim)"
-        )
+        super().__init__(parent=parent, caption="Import a anim file", filter="PDX Animation files (*.anim)")
         options_group = CustomFileOptions("Import Settings", self)
         self.addCustomOptions(options_group)
 
@@ -986,9 +967,7 @@ class AnimImport_UI(CustomFileDialog):
 
 class MeshExport_UI(CustomFileDialog):
     def __init__(self, parent=None):
-        super(MeshExport_UI, self).__init__(
-            parent=parent, caption="Export a mesh file", filter="PDX Mesh files (*.mesh)"
-        )
+        super().__init__(parent=parent, caption="Export a mesh file", filter="PDX Mesh files (*.mesh)")
         options_group = CustomFileOptions("Export Settings")
         self.addCustomOptions(options_group)
 
@@ -1081,9 +1060,7 @@ class MeshExport_UI(CustomFileDialog):
 
 class AnimExport_UI(CustomFileDialog):
     def __init__(self, parent=None):
-        super(AnimExport_UI, self).__init__(
-            parent=parent, caption="Export a anim file", filter="PDX Animation files (*.anim)"
-        )
+        super().__init__(parent=parent, caption="Export a anim file", filter="PDX Animation files (*.anim)")
         options_group = CustomFileOptions("Export Settings")
         self.addCustomOptions(options_group)
 
@@ -1178,7 +1155,7 @@ class MayaProgress(object):
             fn = getattr(self, name)
             fn(*args)
         except AttributeError:
-            IO_PDX_LOG.warning("Maya progress window called with unknown method '{0}'".format(name))
+            IO_PDX_LOG.warning(f"Maya progress window called with unknown method - '{name}'")
 
     @staticmethod
     def show(max_value, title):
@@ -1199,14 +1176,13 @@ class MayaProgress(object):
 
 """ ====================================================================================================================
     Main entry point.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
 def main():
     IO_PDX_LOG.info("Loading Maya UI.")
 
-    maya_main_window = get_maya_mainWindow()
+    maya_main_window = get_maya_main_window()
     pdx_tools = maya_main_window.findChild(QtWidgets.QDialog, "PDX_Maya_Tools")
 
     if pdx_tools is not None:

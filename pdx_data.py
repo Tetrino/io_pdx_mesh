@@ -8,8 +8,6 @@ Critically, the way strings and binary data are handled must now be done with ca
 author : ross-g
 """
 
-from __future__ import print_function, unicode_literals
-
 import json
 import logging
 import mmap
@@ -20,15 +18,13 @@ try:
 except ImportError:
     import xml.etree.ElementTree as Xml
 
-from .external import six
 
 DATA_LOG = logging.getLogger("io_pdx.data")
 
 
 """ ====================================================================================================================
     PDX data classes.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
 class PDXData(object):
@@ -71,18 +67,18 @@ class PDXData(object):
             _val = getattr(self, _key)
 
             if isinstance(_val, type(self)):
-                string.append("{}{}:".format(self.depth * indent, _key))
-                string.append("{}".format(_val))
+                string.append(f"{self.depth * indent}{_key}:")
+                string.append(f"{_val}")
 
             else:
                 if all(isinstance(v, type(self)) for v in _val):
                     for v in _val:
-                        string.append("{}{}:".format(self.depth * indent, _key))
-                        string.append("{}".format(v))
+                        string.append(f"{self.depth * indent}{_key}:")
+                        string.append(f"{v}")
                 else:
                     data_len = len(_val)
                     data_type = list(set(type(v) for v in _val))[0].__name__
-                    string.append("{}{} ({}, {}):  {}".format(self.depth * indent, _key, data_type, data_len, _val))
+                    string.append(f"{self.depth * indent}{_key} ({data_type}, {data_len}):  {_val}")
 
         return "\n".join(string)
 
@@ -98,13 +94,12 @@ class PDXDataJSON(json.JSONEncoder):
                 else:
                     d[attr] = val
             return d
-        return super(PDXDataJSON, self).default(obj)
+        return super().default(obj)
 
 
 """ ====================================================================================================================
     Functions for reading and parsing binary data.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
 def parseObject(bdata, pos):
@@ -194,7 +189,7 @@ def parseData(bdata, pos):
 
     else:
         raise NotImplementedError(
-            "Unknown data type encountered. {} at position {}\neg: {}".format(datatype, pos, bdata[pos - 10 : pos + 10])
+            f"Unknown data type encountered. {datatype} at position {pos} eg: {bdata[pos - 10 : pos + 10]}"
         )
 
     return datavalues, pos
@@ -205,10 +200,8 @@ def read_meshfile(filepath):
     The resulting XML is not natively writable to string as it contains Python data types."""
     # read the data
     with open(filepath, "rb") as fp:
-        # TODO: adopt the Py3 only use of context manager for mmap
-        mm_fp = mmap.mmap(fp.fileno(), length=0, access=mmap.ACCESS_READ)
-        fdata = mm_fp.read(mm_fp.size())
-        mm_fp.close()
+        with mmap.mmap(fp.fileno(), length=0, access=mmap.ACCESS_READ) as mm_fp:
+            fdata = mm_fp.read(mm_fp.size())
 
     # create an XML structure to store the object hierarchy
     file_element = Xml.Element("File")
@@ -222,7 +215,7 @@ def read_meshfile(filepath):
     if bytes(b"".join(header)) == b"@@b@":
         pos += 4
     else:
-        raise NotImplementedError("Unknown file header. {}".format(header))
+        raise NotImplementedError(f"Unknown file header: {header}")
 
     parent_element = file_element
     depth_list = [file_element]
@@ -268,8 +261,7 @@ def read_meshfile(filepath):
 
 """ ====================================================================================================================
     Functions for writing XML tree to binary data.
-========================================================================================================================
-"""
+==================================================================================================================== """
 
 
 def writeObject(obj_xml, obj_depth):
@@ -283,7 +275,7 @@ def writeObject(obj_xml, obj_depth):
     # write object name as string
     obj_name = obj_xml.tag
     if not len(obj_name) < 64:
-        raise NotImplementedError("Object name is longer than 64 characters: {}".format(obj_name))
+        raise NotImplementedError(f"Object name is longer than 64 characters: {obj_name}")
     datastring += writeString(obj_name)
     # write zero-byte ending
     datastring += pack("x")
@@ -310,7 +302,7 @@ def writeProperty(prop_name, prop_data):
         datastring += writeData(prop_data)
 
     except NotImplementedError as err:
-        print("Failed writing property: {}".format(prop_name))
+        DATA_LOG.error(f"Failed writing property: {prop_name}")
         raise err
 
     return datastring
@@ -320,14 +312,19 @@ def writeString(string):
     DATA_LOG.debug("writeString: '%s'", string)
     datastring = b""
 
-    string = string.encode("latin-1")
-    datastring += pack("{0}s".format(len(string)), string)
+    try:
+        string = string.encode("latin-1")
+    except UnicodeEncodeError as err:
+        DATA_LOG.error(f"String '{string}' contains characters outside the Latin-1 set.")
+        raise err
+
+    datastring += pack(f"{len(string)}s", string)
 
     return datastring
 
 
 def writeData(data_array):
-    DATA_LOG.debug("writeData: [%s]", ", ".join([str(d) for d in data_array]))
+    DATA_LOG.debug("writeData: [%s]", ", ".join([f"{d}" for d in data_array]))
     datastring = b""
 
     # determine the data type in the array
@@ -337,7 +334,7 @@ def writeData(data_array):
     elif len(types) < 1:
         return datastring
     else:
-        raise NotImplementedError("Mixed data types encountered. - {}".format(types))
+        raise NotImplementedError(f"Mixed data types encountered: {types}")
 
     if all(isinstance(d, int) for d in data_array):
         # write integer data
@@ -361,7 +358,7 @@ def writeData(data_array):
         # values
         datastring += pack("f" * size, *data_array)
 
-    elif all(isinstance(d, six.string_types) for d in data_array):
+    elif all(isinstance(d, str) for d in data_array):
         # write string data
         datastring += pack("c", "s".encode())
 
@@ -380,7 +377,7 @@ def writeData(data_array):
         datastring += pack("x")
 
     else:
-        raise NotImplementedError("Unknown data type encountered. {}\neg: {}".format(datatype, data_array[0]))
+        raise NotImplementedError(f"Unknown data type encountered. {datatype} eg: {data_array[0]}")
 
     return datastring
 
@@ -398,7 +395,7 @@ def write_meshfile(filepath, root_xml):
     if root_xml.tag == "File":
         datastring += writeProperty("pdxasset", root_xml.get("pdxasset"))
     else:
-        raise NotImplementedError("Unknown XML root encountered. {}".format(root_xml.tag))
+        raise NotImplementedError(f"Unknown XML root encountered. {root_xml.tag}")
 
     # TODO: writing properties would be easier if order was irrelevant, only under Py3 do Xml attributes maintain order
     # TODO: test in game files to determine if order of attributes or objects is important
@@ -498,7 +495,7 @@ def write_animfile(filepath, root_xml):
     if root_xml.tag == "File":
         datastring += writeProperty("pdxasset", root_xml.get("pdxasset"))
     else:
-        raise NotImplementedError("Unknown XML root encountered. {}".format(root_xml.tag))
+        raise NotImplementedError(f"Unknown XML root encountered. {root_xml.tag}")
 
     # write info root
     info_xml = root_xml.find("info")
